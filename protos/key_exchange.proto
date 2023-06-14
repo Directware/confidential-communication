@@ -1,0 +1,12 @@
+syntax = "proto3";
+message InitialKeyExchange {
+  string name = 1;
+  int32 registrationId = 2;  // Unique ID number for this person.
+  int32 preKeyId = 3;
+  bytes preKeyPublic = 4;
+  int32 signedPreKeyId = 5;
+  bytes signedPreKeyPublic = 6;
+  bytes signature = 7;
+  bytes remoteIdentity = 8;
+
+}
