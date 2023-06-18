@@ -34,19 +34,20 @@ impl MessageStorage for MyGreeter {
     }
     async fn gets(   &self,
         request: Request<GetsRequest>) -> Result<Response<GetsResponse>, Status> {
-            let db = self.sharedMap.lock().unwrap();
-            let result = db.get(&request.into_inner().public_key);
-                 let reply: GetsResponse = GetsResponse { messages: vec![Message {message: vec![10] }] };
+            let mut db = self.sharedMap.lock().unwrap();
+            let publick_key = &request.into_inner().public_key;
+            let result = db.get(publick_key);
+                 let empty: GetsResponse = GetsResponse { messages: vec![] };
 
                 match result {
-                    None => Ok(Response::new(reply)),
-                    Some(val) => Ok(Response::new(GetsResponse {messages: vec![Message {message: val.to_vec()}]})),
+                    None => Ok(Response::new(empty)),
+                    Some(val) => {
+                        let reply = GetsResponse {messages: vec![Message {message: val.to_vec()}]};
+                        db.remove(publick_key);
+                        Ok(Response::new(reply))
+                    },
                 }
-                 
-
-  
-
-
+                
     }
     
 }
