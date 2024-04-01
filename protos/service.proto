@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package definition;
+
+option go_package = "server/proto_definition";
+
+
+service MessageService {
+    rpc ValidateSignature(SignatureRequest) returns (JWTResponse) {}
+    rpc PutMessage(PutMessageRequest) returns (Empty) {}
+    rpc GetMessages(GetMessagesRequest) returns (GetMessagesResponse) {}
+}
+
+enum Enum {
+  OPENPGP = 0;
+}
+
+enum Compression {
+    
+    UNCOMPRESSED = 0;
+    ZIP = 1;
+    ZLIB = 2;
+    BZIP2 = 3;
+
+    PROTOCOL_MANAGED = 10;
+
+}
+
+message SignatureRequest {
+    // Your OpenPGP signature or any necessary data for validation
+    // Add fields as needed
+    Enum protocol = 1;
+    uint32 version = 2;
+    bytes proof = 3;
+    
+}
+
+message InitialExchange {
+    string name = 1;
+    string id = 2; // also called fingerprint
+    bytes publicKey = 3;
+    Enum protocol = 4;
+    string serverURL = 5;
+    uint32 version = 6;
+
+    bool isPayloadEncrypted = 7;
+
+    bytes challenge = 8;
+    
+}
+message GenericMessage {
+
+    bytes payload = 1;
+    Enum Compression = 2;
+    uint32 type = 3;
+
+    oneof typeOfMessage {
+        InitialExchange initialExchange = 4;
+  }
+
+}
+message JWTResponse {
+    string token = 1;
+}
+
+message PutMessageRequest {
+    string recipientId = 1;
+    GenericMessage message = 2;
+}
+
+message Empty {
+
+}
+
+message GetMessagesRequest {
+}
+
+message GetMessagesResponse {
+    repeated GenericMessage messages = 1;
+}
