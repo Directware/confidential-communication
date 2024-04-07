@@ -4,13 +4,6 @@ import 'package:dart_pg/dart_pg.dart';
 import 'package:grpc/grpc.dart';
 
 void main() async {
-
-
-
-
-
-
-  
 const passphrase = 'secret stuff';
 final userID = ["asdasd", '(adasd)', '<test@test.com>'].join(' ');
 final privateKey = await OpenPGP.generateKey(
@@ -18,6 +11,11 @@ final privateKey = await OpenPGP.generateKey(
     passphrase,
     type: KeyGenerationType.eddsa,
 );
+
+
+ConfidentialCommunication(InMemoryStore(privateKey.keyPacket.encode()), 'tesatasdt');
+  
+
 final publicKey = privateKey.toPublic;
 
 print(publicKey.fingerprint);
