@@ -13,8 +13,9 @@ final privateKey = await OpenPGP.generateKey(
 );
 
 
-ConfidentialCommunication(InMemoryStore(privateKey.keyPacket.encode()), 'tesatasdt');
-  
+final client = ConfidentialCommunication(InMemoryStore(privateKey.keyPacket.encode()), 'tesatasdt', address: "localhost", port: 50051);
+
+
 
 final publicKey = privateKey.toPublic;
 

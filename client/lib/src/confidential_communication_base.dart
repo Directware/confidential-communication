@@ -1,6 +1,7 @@
 import 'dart:ffi';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:math';
 
 import 'package:confidential_communication/confidential_communication.dart';
 import 'package:confidential_communication/src/generated/service.pb.dart';
@@ -12,6 +13,18 @@ import 'package:jwt_decoder/jwt_decoder.dart';
 
 class ClientNotConnected implements Exception {}
 
+extension RandomExtensions on Random {
+  int get nextByte => nextInt(256);
+  
+  Uint8List nextBytes(int length) {
+    final result = Uint8List(length);
+    for (var i=0; i<length; i++) {
+      result[i] = nextByte;
+    }
+    return result;
+  }
+}
+
 class ConfidentialCommunication {
 
   static const int version = 1;
@@ -20,7 +33,9 @@ class ConfidentialCommunication {
   String? address;
   int? port;
   Enum protocol;
-  late CryptographicProtocol cryptographicProtocol; 
+  late CryptographicProtocol cryptographicProtocol;
+
+  bool Function(InitialExchange)? shouldAddContact;
   
 
   MessageServiceClient? client;
@@ -39,9 +54,43 @@ class ConfidentialCommunication {
 
     if(protocol == Enum.OPENPGP){
       cryptographicProtocol = OpenPGPProtocol(store.getPrivateKey(passphrase));
-
     }
   }
+
+
+
+  Future<InitialExchange> initialExchange(String name) async {
+
+    var secureRandom = Random.secure();
+
+    final challenge = secureRandom.nextBytes(16);
+
+    return InitialExchange(name: name, id: cryptographicProtocol.getMyFingerprint(), publicKey: cryptographicProtocol.getMyPublicKey(), 
+    protocol: protocol, version: version, isPayloadEncrypted: false, serverURL: "$address:$port", challenge: challenge
+    );
+
+  }
+
+
+  Stream<(Contact, GenericMessage)> receive(
+      {Duration polling = const Duration(seconds: 1)}) async* {
+    while (true) {
+      final response = await getMessages();
+
+      for (final message in response) {
+        if (message.whichTypeOfMessage() == GenericMessage_TypeOfMessage.initialExchange){
+          shouldAddContact?.call(message.initialExchange);
+
+        }
+        //TODO retrive contact 
+        message.payload = await cryptographicProtocol.decrypt(Uint8List.fromList(message.payload));
+        yield message;
+      }
+      await Future.delayed(polling);
+    }
+  }
+
+  
 
 
   Future<JWTResponse> getToken() async {
@@ -106,8 +155,10 @@ abstract class CryptographicProtocol {
 
   Future<Uint8List> decrypt(Uint8List message);
 
+  String getMyFingerprint();
 
-  
+  Uint8List getMyPublicKey();
+
 }
 
 
@@ -115,6 +166,7 @@ class OpenPGPProtocol implements CryptographicProtocol{
 
 
   late PrivateKey privateKey;
+  late PublicKey publicKey;
 
   static PublicKey contactToPublickey(Contact contact) {
       return PublicKey.fromPacketList(PacketList.packetDecode(contact.publicKey));
@@ -123,12 +175,15 @@ class OpenPGPProtocol implements CryptographicProtocol{
 
   OpenPGPProtocol(Uint8List privateKey){
     this.privateKey = PrivateKey.fromPacketList(PacketList.packetDecode(privateKey));
+    publicKey = this.privateKey.toPublic;
   }
 
   @override
   Future<Uint8List> decrypt(Uint8List message) async {
     final plaintext = await OpenPGP.decrypt(
     Message(PacketList.packetDecode(message)), decryptionKeys: [privateKey]);
+
+
 
     return plaintext.literalData!.data;
 
@@ -156,6 +211,16 @@ class OpenPGPProtocol implements CryptographicProtocol{
   @override
   bool validateSignature() {
     throw UnimplementedError();
+  }
+  
+  @override
+  String getMyFingerprint() {
+   return publicKey.fingerprint;
+  }
+  
+  @override
+  Uint8List getMyPublicKey() {
+   return publicKey.toPacketList().encode();
   }
 
 }
