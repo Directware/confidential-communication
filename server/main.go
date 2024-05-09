@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -26,6 +27,10 @@ const (
 )
 
 var redisClient *redis.Client
+
+type jwtStruct struct {
+	fingerprint string
+}
 
 type server struct {
 	pb.UnimplementedMessageServiceServer
@@ -44,7 +49,7 @@ func (s *server) ValidateSignature(ctx context.Context, req *pb.SignatureRequest
 	var fingerprint string
 
 	if req.Protocol == pb.Enum_OPENPGP {
-		fingerprint = "example-fingerprint"
+		fingerprint = string(req.Proof)
 	} else {
 		err := status.Error(codes.Unimplemented, "this Protocol is unimplemented")
 		return nil, err
@@ -72,19 +77,21 @@ func (s *server) PutMessage(ctx context.Context, req *pb.PutMessageRequest) (*pb
 
 	// Store message in Redis
 
-	token, err := getTokenFromContext(ctx)
+	_, err := getTokenFromContext(ctx)
 
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Println(token)
+	fmt.Printf("putting message %s", req.RecipientId)
 
 	if req.RecipientId == "" {
 		return nil, status.Error(codes.InvalidArgument, "invalid RecipientId")
 	}
 
-	err = redisClient.Set(ctx, req.RecipientId, req.Message, 0).Err()
+	bytes, _ := proto.Marshal(req)
+
+	err = redisClient.RPush(ctx, req.RecipientId, bytes).Err()
 
 	if err != nil {
 		return nil, err
@@ -93,18 +100,37 @@ func (s *server) PutMessage(ctx context.Context, req *pb.PutMessageRequest) (*pb
 	return &pb.Empty{}, nil
 }
 
-func (s *server) GetMessage(ctx context.Context, req *pb.GetMessagesRequest) (*pb.GetMessagesResponse, error) {
+func (s *server) GetMessages(ctx context.Context, req *pb.GetMessagesRequest) (*pb.GetMessagesResponse, error) {
 	// Retrieve message from Redis
 
-	val, err := redisClient.Get(ctx, "").Result()
+	token, err := getTokenFromContext(ctx)
+
+	fmt.Println(token.fingerprint)
+
 	if err != nil {
 		return nil, err
 	}
 
-	return &pb.GetMessagesResponse{Messages: []*pb.GenericMessage{{Payload: []byte(val)}}}, nil
+	val, err := redisClient.LRange(ctx, token.fingerprint, 0, -1).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	messages := make([]*pb.GenericMessage, 0)
+
+	for _, ele := range val {
+		m := &pb.GenericMessage{}
+		fmt.Println([]byte(ele))
+
+		proto.Unmarshal([]byte(ele), m)
+
+		messages = append(messages, m)
+	}
+
+	return &pb.GetMessagesResponse{Messages: messages}, nil
 }
 
-func getTokenFromContext(ctx context.Context) (string, error) {
+func getTokenFromContext(ctx context.Context) (*jwtStruct, error) {
 
 	md, ok := metadata.FromIncomingContext(ctx)
 	var values []string
@@ -114,16 +140,42 @@ func getTokenFromContext(ctx context.Context) (string, error) {
 		values = md.Get(AuthorizationHeader)
 
 	} else {
-		return "", fmt.Errorf("authorization token is not present")
+		return nil, fmt.Errorf("authorization token is not present")
 	}
 
 	if len(values) > 0 {
 		token = values[0]
-	} else {
-		return "", fmt.Errorf("authorization token is not present")
-	}
 
-	return token, nil
+		token, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
+			// Don't forget to validate the alg is what you expect:
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+			}
+
+			// hmacSampleSecret is a []byte containing your secret, e.g. []byte("my_secret_key")
+			return []byte(jwtSecret), nil
+		})
+
+		if err != nil {
+			return nil, err
+		}
+
+		if claims, ok := token.Claims.(jwt.MapClaims); ok {
+
+			fingerprint, ok := claims["fingerprint"].(string)
+
+			if !ok {
+				return nil, fmt.Errorf("invalid claim present")
+			}
+
+			return &jwtStruct{fingerprint: fingerprint}, nil
+		} else {
+			return nil, fmt.Errorf("invalid claim present")
+		}
+
+	} else {
+		return nil, fmt.Errorf("authorization token is not present")
+	}
 
 }
 func main() {
