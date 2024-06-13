@@ -1,15 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:ffi';
-import 'dart:io';
 import 'dart:typed_data';
 import 'dart:math';
 
-import 'package:confidential_communication/confidential_communication.dart';
 import 'package:confidential_communication/src/const.dart';
 import 'package:confidential_communication/src/generated/service.pb.dart';
 import 'package:confidential_communication/src/generated/service.pbgrpc.dart';
-import 'package:confidential_communication/src/generated/service.pbjson.dart';
 import 'package:dart_pg/dart_pg.dart';
 import 'package:dart_pg/src/packet/packet_list.dart';
 import 'package:grpc/grpc.dart';
@@ -23,18 +19,75 @@ class UnknowSender implements Exception {}
 
 extension RandomExtensions on Random {
   int get nextByte => nextInt(256);
-  
+
   Uint8List nextBytes(int length) {
     final result = Uint8List(length);
-    for (var i=0; i<length; i++) {
+    for (var i = 0; i < length; i++) {
       result[i] = nextByte;
     }
     return result;
   }
 }
 
-class ConfidentialCommunication {
+class AuthInterceptor implements ClientInterceptor {
+  FutureOr<void> _injectToken(Map<String, String> metadata, String uri) async {
+    if (!store.isTokenValid()) {
+      await getToken();
+    }
+    final token = store.getToken();
+    if (token != null) {
+      metadata[authorizationHeader] = token;
+    }
+  }
 
+  final Store store;
+  final Future<JWTResponse> Function() getToken;
+  AuthInterceptor({required this.store, required this.getToken});
+
+  @override
+  ResponseStream<R> interceptStreaming<Q, R>(
+    ClientMethod<Q, R> method,
+    Stream<Q> requests,
+    CallOptions options,
+    ClientStreamingInvoker<Q, R> invoker,
+  ) {
+    if (requests is! Stream<SignatureRequest>) {
+      final modifiedOptions = options.mergedWith(
+        CallOptions(
+          providers: [
+            _injectToken,
+          ],
+        ),
+      );
+      return invoker(method, requests, modifiedOptions);
+    }
+
+    return invoker(method, requests, options);
+  }
+
+  @override
+  ResponseFuture<R> interceptUnary<Q, R>(
+    ClientMethod<Q, R> method,
+    Q request,
+    CallOptions options,
+    ClientUnaryInvoker<Q, R> invoker,
+  ) {
+    if (request is! SignatureRequest) {
+      final modifiedOptions = options.mergedWith(
+        CallOptions(
+          providers: [
+            _injectToken,
+          ],
+        ),
+      );
+      return invoker(method, request, modifiedOptions);
+    }
+
+    return invoker(method, request, options);
+  }
+}
+
+class ConfidentialCommunication {
   static const int version = 1;
   Store store;
   AddressBook addressBook;
@@ -45,66 +98,74 @@ class ConfidentialCommunication {
   late CryptographicProtocol cryptographicProtocol;
 
   bool Function(InitialExchange)? shouldAddContact;
-  
 
   MessageServiceClient? client;
 
-  ConfidentialCommunication(this.store, this.addressBook ,String this.passphrase,
+  ConfidentialCommunication(
+      this.store, this.addressBook, String this.passphrase,
       {String? this.address, int? this.port, this.protocol = Enum.OPENPGP}) {
     if (address != null) {
       final channel = ClientChannel(
         address!,
         port: port ?? 443,
-        options:
-            const ChannelOptions(credentials: ChannelCredentials.insecure()),
+        options: const ChannelOptions(
+          credentials: ChannelCredentials.insecure(),
+        ),
       );
-      client = MessageServiceClient(channel);
+      client = MessageServiceClient(
+        channel,
+        interceptors: [AuthInterceptor(store: store, getToken: getToken)],
+      );
     }
 
-    if(protocol == Enum.OPENPGP){
-      cryptographicProtocol = OpenPGPProtocol(store.getPrivateKey(passphrase), addressBook);
+    if (protocol == Enum.OPENPGP) {
+      cryptographicProtocol =
+          OpenPGPProtocol(store.getPrivateKey(), passphrase, addressBook);
     }
   }
 
-
-
   Future<GenericMessage> initialExchange(String name) async {
-
     var secureRandom = Random.secure();
 
     final challenge = secureRandom.nextBytes(16);
 
-        final initialExchange =  InitialExchange(name: name, id: cryptographicProtocol.getMyFingerprint(), publicKey: cryptographicProtocol.getMyPublicKey(), 
-    protocol: protocol, version: version, isPayloadEncrypted: false, serverURL: "$address:$port", challenge: challenge
-    );
-    
+    final initialExchange = InitialExchange(
+        name: name,
+        id: cryptographicProtocol.getMyFingerprint(),
+        publicKey: cryptographicProtocol.getMyPublicKey(),
+        protocol: protocol,
+        version: version,
+        isPayloadEncrypted: false,
+        serverURL: "$address:$port",
+        challenge: challenge);
+
     final genericMessage = GenericMessage(initialExchange: initialExchange);
 
-  return genericMessage;
-
+    return genericMessage;
   }
 
-
   void processInitialExchange(GenericMessage m, String name) async {
+    if (m.whichTypeOfMessage() !=
+        GenericMessage_TypeOfMessage.initialExchange) {
+      throw Exception("invalid message");
+    }
 
-      if (m.whichTypeOfMessage() != GenericMessage_TypeOfMessage.initialExchange){
-        throw Exception("invalid message");
-      }
+    final contact = Contact(Uint8List.fromList(m.initialExchange.publicKey),
+        m.initialExchange.name);
+    addressBook.addContact(m.initialExchange.id, contact);
 
-      final contact = Contact(Uint8List.fromList(m.initialExchange.publicKey), m.initialExchange.name);
-      addressBook.addContact(m.initialExchange.id, contact);
-    
-     
-     if(!store.isTokenValid()){
+    if (!store.isTokenValid()) {
       await getToken();
     }
 
     final messageToSend = await initialExchange(name);
 
-    final result = await client!.putMessage(PutMessageRequest(recipientId: m.initialExchange.id, message: messageToSend), options: CallOptions(metadata: {authorizationHeader: store.getToken()!}));
-
+    final result = await client!.putMessage(
+        PutMessageRequest(
+            recipientId: m.initialExchange.id, message: messageToSend),
+        options:
+            CallOptions(metadata: {authorizationHeader: store.getToken()!}));
   }
-
 
   Stream<(Contact, GenericMessage)> receive(
       {Duration polling = const Duration(seconds: 1)}) async* {
@@ -112,11 +173,14 @@ class ConfidentialCommunication {
       final response = await getMessages();
 
       for (final message in response) {
-        if (message.whichTypeOfMessage() == GenericMessage_TypeOfMessage.initialExchange){
+        if (message.whichTypeOfMessage() ==
+            GenericMessage_TypeOfMessage.initialExchange) {
           final result = shouldAddContact?.call(message.initialExchange);
 
           if (result ?? false) {
-            final contact = Contact(Uint8List.fromList(message.initialExchange.publicKey), message.initialExchange.name);
+            final contact = Contact(
+                Uint8List.fromList(message.initialExchange.publicKey),
+                message.initialExchange.name);
             addressBook.addContact(message.initialExchange.id, contact);
           }
 
@@ -124,58 +188,51 @@ class ConfidentialCommunication {
         }
 
         try {
-          final result = await cryptographicProtocol.decryptSigned(Uint8List.fromList(message.payload));
+          final result = await cryptographicProtocol
+              .decryptSigned(Uint8List.fromList(message.payload));
           message.payload = List<int>.from(result.message);
           yield (result.sender, message);
         } on UnknowSender {
           continue;
-        } on VerificationFailed {
-
-        }
-
+        } on VerificationFailed {}
       }
       await Future.delayed(polling);
     }
   }
 
-  
-
-
   Future<JWTResponse> getToken() async {
-    if(client == null){
-        throw ClientNotConnected();
+    if (client == null) {
+      throw ClientNotConnected();
     }
-    final result = await client!.validateSignature(SignatureRequest(protocol: protocol, version: version, proof:  utf8.encode(cryptographicProtocol.getMyFingerprint()) ));
+    final result = await client!.validateSignature(SignatureRequest(
+        protocol: protocol,
+        version: version,
+        proof: utf8.encode(cryptographicProtocol.getMyFingerprint())));
     store.storeToken(result.token);
     return result;
   }
 
   Future<List<GenericMessage>> getMessages() async {
-
-    if(!store.isTokenValid()){
+    if (!store.isTokenValid()) {
       await getToken();
     }
 
-    final result = await client!.getMessages(GetMessagesRequest(),  options: CallOptions(metadata: {authorizationHeader: store.getToken()!}));
+    final result = await client!.getMessages(GetMessagesRequest());
 
     return result.messages;
-
   }
 
-  Future<bool> sendMessage(Contact recipient, Uint8List payload, {int applicationType = 0}) async {
-    final cipther = await cryptographicProtocol.signAndEncrypt(payload, recipient);
+  Future<bool> sendMessage(Contact recipient, Uint8List payload,
+      {int applicationType = 0}) async {
+    final cipther =
+        await cryptographicProtocol.signAndEncrypt(payload, recipient);
 
-    if(!store.isTokenValid()){
-      await getToken();
-    }
-
-    final result = await client!.putMessage(PutMessageRequest(recipientId: recipient.getFingerprint(protocol), message: GenericMessage(payload: cipther,type: applicationType)));
+    final result = await client!.putMessage(PutMessageRequest(
+        recipientId: recipient.getFingerprint(protocol),
+        message: GenericMessage(payload: cipther, type: applicationType)));
 
     return false;
   }
-
-
-
 }
 
 class Contact {
@@ -185,23 +242,17 @@ class Contact {
 
   Contact(this.publicKey, this.name);
 
-
-  String getFingerprint(Enum protocol){
-
-    if(protocol == Enum.OPENPGP){
+  String getFingerprint(Enum protocol) {
+    if (protocol == Enum.OPENPGP) {
       return OpenPGPProtocol.contactToPublickey(this).fingerprint;
     }
 
     throw UnimplementedError();
- 
-
   }
-
 }
 
 abstract class CryptographicProtocol {
-
-  Future<Uint8List> signAndEncrypt(Uint8List message, Contact contact); 
+  Future<Uint8List> signAndEncrypt(Uint8List message, Contact contact);
 
   Future<Uint8List> sign(Uint8List message);
 
@@ -211,83 +262,70 @@ abstract class CryptographicProtocol {
 
   Future<Uint8List> decrypt(Uint8List message);
 
-  Future<({Uint8List message, Contact sender})> decryptSigned(Uint8List message);
+  Future<({Uint8List message, Contact sender})> decryptSigned(
+      Uint8List message);
 
   String getMyFingerprint();
 
   Uint8List getMyPublicKey();
-
 }
 
 abstract class AddressBook {
-
   Future<Contact?> getContactFromId(String id);
 
   void addContact(String id, Contact contact);
-
-
 }
 
-
 class AddressBookInMemory implements AddressBook {
-  
   Map<String, Contact> store = {};
 
-  
   @override
   void addContact(String id, Contact contact) {
-
     store[id] = contact;
-  
   }
 
   @override
   Future<Contact?> getContactFromId(String id) async {
     return store[id];
   }
-
 }
 
-class OpenPGPProtocol implements CryptographicProtocol{
-
-
+class OpenPGPProtocol implements CryptographicProtocol {
   late PrivateKey privateKey;
   late PublicKey publicKey;
   AddressBook addressBook;
 
-
-
-
   static PublicKey contactToPublickey(Contact contact) {
-      return PublicKey.fromPacketList(PacketList.packetDecode(contact.publicKey));
+    return PublicKey.fromPacketList(PacketList.packetDecode(contact.publicKey));
   }
 
+  OpenPGPProtocol(Uint8List privateKey, String passphrase, this.addressBook) {
+    this.privateKey =
+        PrivateKey.fromPacketList(PacketList.packetDecode(privateKey));
+    this
+        .privateKey
+        .decrypt(passphrase)
+        .then((value) => this.privateKey = value);
 
-  OpenPGPProtocol(Uint8List privateKey, this.addressBook){
-    this.privateKey = PrivateKey.fromPacketList(PacketList.packetDecode(privateKey));
     publicKey = this.privateKey.toPublic;
   }
 
   @override
   Future<Uint8List> decrypt(Uint8List message) async {
     final plaintext = await OpenPGP.decrypt(
-    Message(PacketList.packetDecode(message)), decryptionKeys: [privateKey]);
-
+        Message(PacketList.packetDecode(message)),
+        decryptionKeys: [privateKey]);
 
     return plaintext.literalData!.data;
-
   }
-
-
-
 
   @override
   Future<Uint8List> encrypt(Uint8List message, Contact contact) async {
     final encMessage = await OpenPGP.encrypt(
-      await OpenPGP.createBinaryMessage(message), encryptionKeys: [contactToPublickey(contact)]
-    );
+        await OpenPGP.createBinaryMessage(message),
+        encryptionKeys: [contactToPublickey(contact)]);
 
-  return encMessage.packetList.encode();
+    return encMessage.packetList.encode();
   }
 
   @override
@@ -298,8 +336,9 @@ class OpenPGPProtocol implements CryptographicProtocol{
   @override
   Future<Uint8List> signAndEncrypt(Uint8List message, Contact contact) async {
     final encSingMessage = await OpenPGP.encrypt(
-      await OpenPGP.createBinaryMessage(message), encryptionKeys: [contactToPublickey(contact)], signingKeys: [privateKey]
-    );
+        await OpenPGP.createBinaryMessage(message),
+        encryptionKeys: [contactToPublickey(contact)],
+        signingKeys: [privateKey]);
     return encSingMessage.packetList.encode();
   }
 
@@ -307,77 +346,66 @@ class OpenPGPProtocol implements CryptographicProtocol{
   bool validateSignature() {
     throw UnimplementedError();
   }
-  
+
   @override
   String getMyFingerprint() {
-   return publicKey.fingerprint;
+    return publicKey.fingerprint;
   }
-  
+
   @override
   Uint8List getMyPublicKey() {
-   return publicKey.toPacketList().encode();
+    return publicKey.toPacketList().encode();
   }
-  
+
   @override
-  Future<({Uint8List message, Contact sender})> decryptSigned(Uint8List message) async  {
-
+  Future<({Uint8List message, Contact sender})> decryptSigned(
+      Uint8List message) async {
     Message plaintext = await OpenPGP.decrypt(
-    Message(PacketList.packetDecode(message)), decryptionKeys: [privateKey]);
+        Message(PacketList.packetDecode(message)),
+        decryptionKeys: [privateKey]);
 
-
-    if(plaintext.signingKeyIDs.length > 1) {
+    if (plaintext.signingKeyIDs.length > 1) {
       throw Exception("Not more thath one signingKey");
     }
 
+    final signingKeyID =
+        plaintext.signaturePackets.first.issuerFingerprint!.fingerprint;
 
-    final signingKeyID = plaintext.encryptionKeyIDs.first;
-
-
-    final contact = await addressBook.getContactFromId(signingKeyID.id);
+    final contact = await addressBook.getContactFromId(signingKeyID);
 
     if (contact == null) {
       throw UnknowSender();
     }
-  
+
     plaintext = await plaintext.verify([contactToPublickey(contact)]);
 
     final verification = plaintext.verifications.first;
 
-
-    if(verification.verified && verification.keyID == signingKeyID.id) {
-
+    if (verification.verified &&
+        verification.signature.packets.first.issuerFingerprint!.fingerprint ==
+            signingKeyID) {
       return (message: plaintext.literalData!.data, sender: contact);
-    }  
-    
+    }
+
     throw VerificationFailed();
-    
-
   }
-
-
-
 }
 
-
 abstract class Store {
-
   storeToken(String token);
   String? getToken();
   bool isTokenValid() {
-
     String? token = getToken();
 
-    if(token == null)return false;
+    if (token == null) return false;
 
     return JwtDecoder.isExpired(token);
   }
 
-  Uint8List getPrivateKey(String passphrase);
-
+  Uint8List getPrivateKey();
 }
 
-class InMemoryStore extends Store{
-
+class InMemoryStore extends Store {
   String? token;
 
   Uint8List privateKey;
@@ -385,7 +413,7 @@ class InMemoryStore extends Store{
   InMemoryStore(this.privateKey);
 
   @override
-  Uint8List getPrivateKey(String passphrase) {
+  Uint8List getPrivateKey() {
     return privateKey;
   }
 
@@ -396,7 +424,6 @@ class InMemoryStore extends Store{
 
   @override
   storeToken(String token) {
-     this.token = token; 
+    this.token = token;
   }
-
 }

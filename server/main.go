@@ -120,12 +120,13 @@ func (s *server) GetMessages(ctx context.Context, req *pb.GetMessagesRequest) (*
 
 	for _, ele := range val {
 		m := &pb.GenericMessage{}
-		fmt.Println([]byte(ele))
 
 		proto.Unmarshal([]byte(ele), m)
 
 		messages = append(messages, m)
 	}
+
+	redisClient.Del(ctx, token.fingerprint)
 
 	return &pb.GetMessagesResponse{Messages: messages}, nil
 }

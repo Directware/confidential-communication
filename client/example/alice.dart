@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:confidential_communication/confidential_communication.dart';
@@ -17,7 +18,7 @@ final privateKey = await OpenPGP.generateKey(
 
 final addressBook = AddressBookInMemory();
 
-final client = ConfidentialCommunication(InMemoryStore(privateKey.keyPacket.encode()),addressBook, passphrase, address: "localhost", port: 50051);
+final client = ConfidentialCommunication(InMemoryStore(privateKey.toPacketList().encode()),addressBook, passphrase, address: "localhost", port: 50051);
 
 
 client.shouldAddContact = (initial) {
@@ -27,11 +28,12 @@ client.shouldAddContact = (initial) {
 
 var myFile = File('qrcode.txt');
 
-myFile.writeAsBytesSync((await client.initialExchange("MyId")).writeToBuffer());
+myFile.writeAsBytesSync((await client.initialExchange("Alice")).writeToBuffer());
 
 
   client.receive().listen((event) {
-    print("new message: from ${event.$1.name }");
+    print("new message: from ${event.$1.name } data is ${utf8.decode(event.$2.payload)}");
+    client.sendMessage(event.$1, utf8.encode("hello your message was ${utf8.decode(event.$2.payload)}"));
   });
 
 
