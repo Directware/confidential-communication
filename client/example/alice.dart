@@ -20,7 +20,7 @@ final addressBook = AddressBookInMemory();
 
 final client = ConfidentialCommunication(InMemoryStore(privateKey.toPacketList().encode()),addressBook, passphrase, address: "localhost", port: 50051);
 
-
+await client.init();
 client.shouldAddContact = (initial) {
   print("some one what send message to me ${initial.name}");
   return true;

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:math';
-
+import 'package:fixnum/fixnum.dart';
 import 'package:confidential_communication/src/const.dart';
 import 'package:confidential_communication/src/generated/service.pb.dart';
 import 'package:confidential_communication/src/generated/service.pbgrpc.dart';
@@ -10,6 +10,7 @@ import 'package:dart_pg/dart_pg.dart';
 import 'package:dart_pg/src/packet/packet_list.dart';
 import 'package:grpc/grpc.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
+import 'package:uuid/uuid.dart';
 
 class ClientNotConnected implements Exception {}
 
@@ -120,10 +121,13 @@ class ConfidentialCommunication {
 
     if (protocol == Enum.OPENPGP) {
       cryptographicProtocol =
-          OpenPGPProtocol(store.getPrivateKey(), passphrase, addressBook);
+          OpenPGPProtocol(store.getPrivateKey(), addressBook);
     }
   }
 
+  Future<void> init() async {
+    cryptographicProtocol.decryptPrivateKey(passphrase);
+  }
   Future<GenericMessage> initialExchange(String name) async {
     var secureRandom = Random.secure();
 
@@ -154,17 +158,12 @@ class ConfidentialCommunication {
         m.initialExchange.name);
     addressBook.addContact(m.initialExchange.id, contact);
 
-    if (!store.isTokenValid()) {
-      await getToken();
-    }
-
     final messageToSend = await initialExchange(name);
 
     final result = await client!.putMessage(
         PutMessageRequest(
             recipientId: m.initialExchange.id, message: messageToSend),
-        options:
-            CallOptions(metadata: {authorizationHeader: store.getToken()!}));
+       );
   }
 
   Stream<(Contact, GenericMessage)> receive(
@@ -204,19 +203,20 @@ class ConfidentialCommunication {
     if (client == null) {
       throw ClientNotConnected();
     }
+    var uuid = Uuid();
+    SignatureRequestDetail detail = SignatureRequestDetail(requestId: uuid.v4(), fingerPrint: cryptographicProtocol.getMyFingerprint(), requestTime: Int64((DateTime.now().millisecondsSinceEpoch)));
+    final signedRequest = await cryptographicProtocol.sign(detail.writeToBuffer());
+
     final result = await client!.validateSignature(SignatureRequest(
         protocol: protocol,
         version: version,
-        proof: utf8.encode(cryptographicProtocol.getMyFingerprint())));
+        proof: signedRequest, detail: detail,
+        publicKey: cryptographicProtocol.getMyPublicKey()));
     store.storeToken(result.token);
     return result;
   }
 
   Future<List<GenericMessage>> getMessages() async {
-    if (!store.isTokenValid()) {
-      await getToken();
-    }
-
     final result = await client!.getMessages(GetMessagesRequest());
 
     return result.messages;
@@ -262,6 +262,8 @@ abstract class CryptographicProtocol {
 
   Future<Uint8List> decrypt(Uint8List message);
 
+  void decryptPrivateKey(String passphrase);
+
   Future<({Uint8List message, Contact sender})> decryptSigned(
       Uint8List message);
 
@@ -299,13 +301,10 @@ class OpenPGPProtocol implements CryptographicProtocol {
     return PublicKey.fromPacketList(PacketList.packetDecode(contact.publicKey));
   }
 
-  OpenPGPProtocol(Uint8List privateKey, String passphrase, this.addressBook) {
+  OpenPGPProtocol(Uint8List privateKey, this.addressBook) {
     this.privateKey =
         PrivateKey.fromPacketList(PacketList.packetDecode(privateKey));
-    this
-        .privateKey
-        .decrypt(passphrase)
-        .then((value) => this.privateKey = value);
+   
 
     publicKey = this.privateKey.toPublic;
   }
@@ -330,7 +329,9 @@ class OpenPGPProtocol implements CryptographicProtocol {
 
   @override
   Future<Uint8List> sign(Uint8List message) async {
-    throw UnimplementedError();
+    final signature = await (await OpenPGP.createBinaryMessage(message)).signDetached([privateKey]);
+    return PacketList(signature.packets).encode();
+
   }
 
   @override
@@ -389,6 +390,12 @@ class OpenPGPProtocol implements CryptographicProtocol {
 
     throw VerificationFailed();
   }
+  
+  @override
+  void decryptPrivateKey(String passphrase) async {
+    privateKey = await privateKey.decrypt(passphrase);
+  }
+  
 }
 
 abstract class Store {
@@ -399,7 +406,7 @@ abstract class Store {
 
     if (token == null) return false;
 
-    return JwtDecoder.isExpired(token);
+    return !JwtDecoder.isExpired(token);
   }
 
   Uint8List getPrivateKey();

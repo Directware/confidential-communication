@@ -26,13 +26,20 @@ enum Compression {
 
 }
 
+message SignatureRequestDetail {
+    string requestId = 4;
+    int64 requestTime = 5;
+    string fingerPrint = 6;
+}
+
 message SignatureRequest {
     // Your OpenPGP signature or any necessary data for validation
     // Add fields as needed
     Enum protocol = 1;
     uint32 version = 2;
     bytes proof = 3;
-    
+    SignatureRequestDetail detail = 4;
+    bytes publicKey = 5;
 }
 
 message InitialExchange {

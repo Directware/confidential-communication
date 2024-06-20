@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log"
@@ -10,6 +11,7 @@ import (
 
 	pb "confidential_communication/generated"
 
+	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
@@ -49,7 +51,27 @@ func (s *server) ValidateSignature(ctx context.Context, req *pb.SignatureRequest
 	var fingerprint string
 
 	if req.Protocol == pb.Enum_OPENPGP {
-		fingerprint = string(req.Proof)
+
+		keyRing, err := openpgp.ReadKeyRing(bytes.NewReader(req.PublicKey))
+
+		if err != nil {
+			return nil, err
+		}
+
+		reqDetailBytes, _ := proto.Marshal(req.Detail)
+
+		signer, err := openpgp.CheckDetachedSignature(keyRing, bytes.NewReader(reqDetailBytes), bytes.NewReader(req.Proof), nil)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if fmt.Sprintf("%x", signer.PrimaryKey.Fingerprint) != req.Detail.FingerPrint {
+			return nil, fmt.Errorf("fingerprint from the signature do not match")
+		}
+
+		fingerprint = req.Detail.FingerPrint
+
 	} else {
 		err := status.Error(codes.Unimplemented, "this Protocol is unimplemented")
 		return nil, err
@@ -83,7 +105,7 @@ func (s *server) PutMessage(ctx context.Context, req *pb.PutMessageRequest) (*pb
 		return nil, err
 	}
 
-	fmt.Printf("putting message %s", req.RecipientId)
+	fmt.Printf("putting message %s\n", req.RecipientId)
 
 	if req.RecipientId == "" {
 		return nil, status.Error(codes.InvalidArgument, "invalid RecipientId")

@@ -42,6 +42,22 @@ final $typed_data.Uint8List compressionDescriptor = $convert.base64Decode(
     'CgtDb21wcmVzc2lvbhIQCgxVTkNPTVBSRVNTRUQQABIHCgNaSVAQARIICgRaTElCEAISCQoFQl'
     'pJUDIQAxIUChBQUk9UT0NPTF9NQU5BR0VEEAo=');
 
+@$core.Deprecated('Use signatureRequestDetailDescriptor instead')
+const SignatureRequestDetail$json = {
+  '1': 'SignatureRequestDetail',
+  '2': [
+    {'1': 'requestId', '3': 4, '4': 1, '5': 9, '10': 'requestId'},
+    {'1': 'requestTime', '3': 5, '4': 1, '5': 3, '10': 'requestTime'},
+    {'1': 'fingerPrint', '3': 6, '4': 1, '5': 9, '10': 'fingerPrint'},
+  ],
+};
+
+/// Descriptor for `SignatureRequestDetail`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List signatureRequestDetailDescriptor = $convert.base64Decode(
+    'ChZTaWduYXR1cmVSZXF1ZXN0RGV0YWlsEhwKCXJlcXVlc3RJZBgEIAEoCVIJcmVxdWVzdElkEi'
+    'AKC3JlcXVlc3RUaW1lGAUgASgDUgtyZXF1ZXN0VGltZRIgCgtmaW5nZXJQcmludBgGIAEoCVIL'
+    'ZmluZ2VyUHJpbnQ=');
+
 @$core.Deprecated('Use signatureRequestDescriptor instead')
 const SignatureRequest$json = {
   '1': 'SignatureRequest',
@@ -49,6 +65,8 @@ const SignatureRequest$json = {
     {'1': 'protocol', '3': 1, '4': 1, '5': 14, '6': '.definition.Enum', '10': 'protocol'},
     {'1': 'version', '3': 2, '4': 1, '5': 13, '10': 'version'},
     {'1': 'proof', '3': 3, '4': 1, '5': 12, '10': 'proof'},
+    {'1': 'detail', '3': 4, '4': 1, '5': 11, '6': '.definition.SignatureRequestDetail', '10': 'detail'},
+    {'1': 'publicKey', '3': 5, '4': 1, '5': 12, '10': 'publicKey'},
   ],
 };
 
@@ -56,7 +74,8 @@ const SignatureRequest$json = {
 final $typed_data.Uint8List signatureRequestDescriptor = $convert.base64Decode(
     'ChBTaWduYXR1cmVSZXF1ZXN0EiwKCHByb3RvY29sGAEgASgOMhAuZGVmaW5pdGlvbi5FbnVtUg'
     'hwcm90b2NvbBIYCgd2ZXJzaW9uGAIgASgNUgd2ZXJzaW9uEhQKBXByb29mGAMgASgMUgVwcm9v'
-    'Zg==');
+    'ZhI6CgZkZXRhaWwYBCABKAsyIi5kZWZpbml0aW9uLlNpZ25hdHVyZVJlcXVlc3REZXRhaWxSBm'
+    'RldGFpbBIcCglwdWJsaWNLZXkYBSABKAxSCXB1YmxpY0tleQ==');
 
 @$core.Deprecated('Use initialExchangeDescriptor instead')
 const InitialExchange$json = {

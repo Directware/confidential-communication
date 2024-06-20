@@ -11,17 +11,98 @@
 
 import 'dart:core' as $core;
 
+import 'package:fixnum/fixnum.dart' as $fixnum;
 import 'package:protobuf/protobuf.dart' as $pb;
 
 import 'service.pbenum.dart';
 
 export 'service.pbenum.dart';
 
+class SignatureRequestDetail extends $pb.GeneratedMessage {
+  factory SignatureRequestDetail({
+    $core.String? requestId,
+    $fixnum.Int64? requestTime,
+    $core.String? fingerPrint,
+  }) {
+    final $result = create();
+    if (requestId != null) {
+      $result.requestId = requestId;
+    }
+    if (requestTime != null) {
+      $result.requestTime = requestTime;
+    }
+    if (fingerPrint != null) {
+      $result.fingerPrint = fingerPrint;
+    }
+    return $result;
+  }
+  SignatureRequestDetail._() : super();
+  factory SignatureRequestDetail.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory SignatureRequestDetail.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'SignatureRequestDetail', package: const $pb.PackageName(_omitMessageNames ? '' : 'definition'), createEmptyInstance: create)
+    ..aOS(4, _omitFieldNames ? '' : 'requestId', protoName: 'requestId')
+    ..aInt64(5, _omitFieldNames ? '' : 'requestTime', protoName: 'requestTime')
+    ..aOS(6, _omitFieldNames ? '' : 'fingerPrint', protoName: 'fingerPrint')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  SignatureRequestDetail clone() => SignatureRequestDetail()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  SignatureRequestDetail copyWith(void Function(SignatureRequestDetail) updates) => super.copyWith((message) => updates(message as SignatureRequestDetail)) as SignatureRequestDetail;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SignatureRequestDetail create() => SignatureRequestDetail._();
+  SignatureRequestDetail createEmptyInstance() => create();
+  static $pb.PbList<SignatureRequestDetail> createRepeated() => $pb.PbList<SignatureRequestDetail>();
+  @$core.pragma('dart2js:noInline')
+  static SignatureRequestDetail getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SignatureRequestDetail>(create);
+  static SignatureRequestDetail? _defaultInstance;
+
+  @$pb.TagNumber(4)
+  $core.String get requestId => $_getSZ(0);
+  @$pb.TagNumber(4)
+  set requestId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasRequestId() => $_has(0);
+  @$pb.TagNumber(4)
+  void clearRequestId() => clearField(4);
+
+  @$pb.TagNumber(5)
+  $fixnum.Int64 get requestTime => $_getI64(1);
+  @$pb.TagNumber(5)
+  set requestTime($fixnum.Int64 v) { $_setInt64(1, v); }
+  @$pb.TagNumber(5)
+  $core.bool hasRequestTime() => $_has(1);
+  @$pb.TagNumber(5)
+  void clearRequestTime() => clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get fingerPrint => $_getSZ(2);
+  @$pb.TagNumber(6)
+  set fingerPrint($core.String v) { $_setString(2, v); }
+  @$pb.TagNumber(6)
+  $core.bool hasFingerPrint() => $_has(2);
+  @$pb.TagNumber(6)
+  void clearFingerPrint() => clearField(6);
+}
+
 class SignatureRequest extends $pb.GeneratedMessage {
   factory SignatureRequest({
     Enum? protocol,
     $core.int? version,
     $core.List<$core.int>? proof,
+    SignatureRequestDetail? detail,
+    $core.List<$core.int>? publicKey,
   }) {
     final $result = create();
     if (protocol != null) {
@@ -33,6 +114,12 @@ class SignatureRequest extends $pb.GeneratedMessage {
     if (proof != null) {
       $result.proof = proof;
     }
+    if (detail != null) {
+      $result.detail = detail;
+    }
+    if (publicKey != null) {
+      $result.publicKey = publicKey;
+    }
     return $result;
   }
   SignatureRequest._() : super();
@@ -43,6 +130,8 @@ class SignatureRequest extends $pb.GeneratedMessage {
     ..e<Enum>(1, _omitFieldNames ? '' : 'protocol', $pb.PbFieldType.OE, defaultOrMaker: Enum.OPENPGP, valueOf: Enum.valueOf, enumValues: Enum.values)
     ..a<$core.int>(2, _omitFieldNames ? '' : 'version', $pb.PbFieldType.OU3)
     ..a<$core.List<$core.int>>(3, _omitFieldNames ? '' : 'proof', $pb.PbFieldType.OY)
+    ..aOM<SignatureRequestDetail>(4, _omitFieldNames ? '' : 'detail', subBuilder: SignatureRequestDetail.create)
+    ..a<$core.List<$core.int>>(5, _omitFieldNames ? '' : 'publicKey', $pb.PbFieldType.OY, protoName: 'publicKey')
     ..hasRequiredFields = false
   ;
 
@@ -95,6 +184,26 @@ class SignatureRequest extends $pb.GeneratedMessage {
   $core.bool hasProof() => $_has(2);
   @$pb.TagNumber(3)
   void clearProof() => clearField(3);
+
+  @$pb.TagNumber(4)
+  SignatureRequestDetail get detail => $_getN(3);
+  @$pb.TagNumber(4)
+  set detail(SignatureRequestDetail v) { setField(4, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasDetail() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearDetail() => clearField(4);
+  @$pb.TagNumber(4)
+  SignatureRequestDetail ensureDetail() => $_ensure(3);
+
+  @$pb.TagNumber(5)
+  $core.List<$core.int> get publicKey => $_getN(4);
+  @$pb.TagNumber(5)
+  set publicKey($core.List<$core.int> v) { $_setBytes(4, v); }
+  @$pb.TagNumber(5)
+  $core.bool hasPublicKey() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearPublicKey() => clearField(5);
 }
 
 class InitialExchange extends $pb.GeneratedMessage {
