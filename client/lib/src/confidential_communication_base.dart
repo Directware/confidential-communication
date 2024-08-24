@@ -217,15 +217,17 @@ class ConfidentialCommunication {
   }
 
   Future<List<GenericMessage>> getMessages() async {
-    final result = await client!.getMessages(GetMessagesRequest());
-
+    final result = await client!.getMessages(GetMessagesRequest(lastId: store.getLastId()));
+    store.setLastId(result.lastId);
+    
     return result.messages;
+
   }
 
   Future<bool> sendMessage(Contact recipient, Uint8List payload,
       {int applicationType = 0}) async {
     final cipther =
-        await cryptographicProtocol.signAndEncrypt(payload, recipient);
+        await cryptographicProtocol.signAndEncrypt(payload, [recipient]);
 
     final result = await client!.putMessage(PutMessageRequest(
         recipientId: recipient.getFingerprint(protocol),
@@ -233,7 +235,20 @@ class ConfidentialCommunication {
 
     return false;
   }
+
+    Future<bool> sendGroupMessage(List<Contact> recipient, Uint8List payload,
+      {int applicationType = 0}) async {
+    final cipther =
+        await cryptographicProtocol.signAndEncrypt(payload, recipient);
+
+    final result = await client!.putGroupMessage(PutGroupMessageRequest(
+        recipientsId: recipient.map((e) => e.getFingerprint(protocol),),
+        message: GenericMessage(payload: cipther, type: applicationType)));
+
+    return false;
+  }
 }
+
 
 class Contact {
   Uint8List publicKey;
@@ -252,13 +267,13 @@ class Contact {
 }
 
 abstract class CryptographicProtocol {
-  Future<Uint8List> signAndEncrypt(Uint8List message, Contact contact);
+  Future<Uint8List> signAndEncrypt(Uint8List message, List<Contact> contact);
 
   Future<Uint8List> sign(Uint8List message);
 
   bool validateSignature();
 
-  Future<Uint8List> encrypt(Uint8List message, Contact contact);
+  Future<Uint8List> encrypt(Uint8List message, List<Contact> contact);
 
   Future<Uint8List> decrypt(Uint8List message);
 
@@ -319,10 +334,10 @@ class OpenPGPProtocol implements CryptographicProtocol {
   }
 
   @override
-  Future<Uint8List> encrypt(Uint8List message, Contact contact) async {
+  Future<Uint8List> encrypt(Uint8List message, List<Contact> contact) async {
     final encMessage = await OpenPGP.encrypt(
         await OpenPGP.createBinaryMessage(message),
-        encryptionKeys: [contactToPublickey(contact)]);
+        encryptionKeys: contact.map((c) => contactToPublickey(c)));
 
     return encMessage.packetList.encode();
   }
@@ -335,10 +350,10 @@ class OpenPGPProtocol implements CryptographicProtocol {
   }
 
   @override
-  Future<Uint8List> signAndEncrypt(Uint8List message, Contact contact) async {
+  Future<Uint8List> signAndEncrypt(Uint8List message, List<Contact> contact) async {
     final encSingMessage = await OpenPGP.encrypt(
         await OpenPGP.createBinaryMessage(message),
-        encryptionKeys: [contactToPublickey(contact)],
+        encryptionKeys: contact.map((c) => contactToPublickey(c)),
         signingKeys: [privateKey]);
     return encSingMessage.packetList.encode();
   }
@@ -401,6 +416,9 @@ class OpenPGPProtocol implements CryptographicProtocol {
 abstract class Store {
   storeToken(String token);
   String? getToken();
+  String getLastId();
+  setLastId(String newId);
+
   bool isTokenValid() {
     String? token = getToken();
 
@@ -417,6 +435,8 @@ class InMemoryStore extends Store {
 
   Uint8List privateKey;
 
+  String lastId = "0";
+
   InMemoryStore(this.privateKey);
 
   @override
@@ -432,5 +452,15 @@ class InMemoryStore extends Store {
   @override
   storeToken(String token) {
     this.token = token;
+  }
+  
+  @override
+  String getLastId() {
+   return lastId;
+  }
+  
+  @override
+  setLastId(String newId) {
+    lastId = newId;
   }
 }

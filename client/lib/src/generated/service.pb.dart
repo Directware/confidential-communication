@@ -610,12 +610,21 @@ class Empty extends $pb.GeneratedMessage {
 }
 
 class GetMessagesRequest extends $pb.GeneratedMessage {
-  factory GetMessagesRequest() => create();
+  factory GetMessagesRequest({
+    $core.String? lastId,
+  }) {
+    final $result = create();
+    if (lastId != null) {
+      $result.lastId = lastId;
+    }
+    return $result;
+  }
   GetMessagesRequest._() : super();
   factory GetMessagesRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
   factory GetMessagesRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'GetMessagesRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'definition'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'lastId', protoName: 'lastId')
     ..hasRequiredFields = false
   ;
 
@@ -639,15 +648,28 @@ class GetMessagesRequest extends $pb.GeneratedMessage {
   @$core.pragma('dart2js:noInline')
   static GetMessagesRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<GetMessagesRequest>(create);
   static GetMessagesRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get lastId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set lastId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasLastId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearLastId() => clearField(1);
 }
 
 class GetMessagesResponse extends $pb.GeneratedMessage {
   factory GetMessagesResponse({
     $core.Iterable<GenericMessage>? messages,
+    $core.String? lastId,
   }) {
     final $result = create();
     if (messages != null) {
       $result.messages.addAll(messages);
+    }
+    if (lastId != null) {
+      $result.lastId = lastId;
     }
     return $result;
   }
@@ -657,6 +679,7 @@ class GetMessagesResponse extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'GetMessagesResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'definition'), createEmptyInstance: create)
     ..pc<GenericMessage>(1, _omitFieldNames ? '' : 'messages', $pb.PbFieldType.PM, subBuilder: GenericMessage.create)
+    ..aOS(2, _omitFieldNames ? '' : 'lastId', protoName: 'lastId')
     ..hasRequiredFields = false
   ;
 
@@ -683,6 +706,75 @@ class GetMessagesResponse extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(1)
   $core.List<GenericMessage> get messages => $_getList(0);
+
+  @$pb.TagNumber(2)
+  $core.String get lastId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set lastId($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasLastId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearLastId() => clearField(2);
+}
+
+class PutGroupMessageRequest extends $pb.GeneratedMessage {
+  factory PutGroupMessageRequest({
+    $core.Iterable<$core.String>? recipientsId,
+    GenericMessage? message,
+  }) {
+    final $result = create();
+    if (recipientsId != null) {
+      $result.recipientsId.addAll(recipientsId);
+    }
+    if (message != null) {
+      $result.message = message;
+    }
+    return $result;
+  }
+  PutGroupMessageRequest._() : super();
+  factory PutGroupMessageRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory PutGroupMessageRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'PutGroupMessageRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'definition'), createEmptyInstance: create)
+    ..pPS(1, _omitFieldNames ? '' : 'recipientsId', protoName: 'recipientsId')
+    ..aOM<GenericMessage>(2, _omitFieldNames ? '' : 'message', subBuilder: GenericMessage.create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  PutGroupMessageRequest clone() => PutGroupMessageRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  PutGroupMessageRequest copyWith(void Function(PutGroupMessageRequest) updates) => super.copyWith((message) => updates(message as PutGroupMessageRequest)) as PutGroupMessageRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static PutGroupMessageRequest create() => PutGroupMessageRequest._();
+  PutGroupMessageRequest createEmptyInstance() => create();
+  static $pb.PbList<PutGroupMessageRequest> createRepeated() => $pb.PbList<PutGroupMessageRequest>();
+  @$core.pragma('dart2js:noInline')
+  static PutGroupMessageRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<PutGroupMessageRequest>(create);
+  static PutGroupMessageRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<$core.String> get recipientsId => $_getList(0);
+
+  @$pb.TagNumber(2)
+  GenericMessage get message => $_getN(1);
+  @$pb.TagNumber(2)
+  set message(GenericMessage v) { setField(2, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasMessage() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMessage() => clearField(2);
+  @$pb.TagNumber(2)
+  GenericMessage ensureMessage() => $_ensure(1);
 }
 
 

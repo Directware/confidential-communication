@@ -9,6 +9,7 @@ service MessageService {
     rpc ValidateSignature(SignatureRequest) returns (JWTResponse) {}
     rpc PutMessage(PutMessageRequest) returns (Empty) {}
     rpc GetMessages(GetMessagesRequest) returns (GetMessagesResponse) {}
+    rpc PutGroupMessage(PutGroupMessageRequest) returns (Empty) {}
 }
 
 enum Enum {
@@ -80,8 +81,15 @@ message Empty {
 }
 
 message GetMessagesRequest {
+    string lastId = 1;
 }
 
 message GetMessagesResponse {
     repeated GenericMessage messages = 1;
+    string lastId = 2;
+}
+
+message PutGroupMessageRequest {
+    repeated string recipientsId = 1;
+    GenericMessage message = 2;
 }

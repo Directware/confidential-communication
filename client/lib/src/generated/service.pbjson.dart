@@ -159,22 +159,41 @@ final $typed_data.Uint8List emptyDescriptor = $convert.base64Decode(
 @$core.Deprecated('Use getMessagesRequestDescriptor instead')
 const GetMessagesRequest$json = {
   '1': 'GetMessagesRequest',
+  '2': [
+    {'1': 'lastId', '3': 1, '4': 1, '5': 9, '10': 'lastId'},
+  ],
 };
 
 /// Descriptor for `GetMessagesRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List getMessagesRequestDescriptor = $convert.base64Decode(
-    'ChJHZXRNZXNzYWdlc1JlcXVlc3Q=');
+    'ChJHZXRNZXNzYWdlc1JlcXVlc3QSFgoGbGFzdElkGAEgASgJUgZsYXN0SWQ=');
 
 @$core.Deprecated('Use getMessagesResponseDescriptor instead')
 const GetMessagesResponse$json = {
   '1': 'GetMessagesResponse',
   '2': [
     {'1': 'messages', '3': 1, '4': 3, '5': 11, '6': '.definition.GenericMessage', '10': 'messages'},
+    {'1': 'lastId', '3': 2, '4': 1, '5': 9, '10': 'lastId'},
   ],
 };
 
 /// Descriptor for `GetMessagesResponse`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List getMessagesResponseDescriptor = $convert.base64Decode(
     'ChNHZXRNZXNzYWdlc1Jlc3BvbnNlEjYKCG1lc3NhZ2VzGAEgAygLMhouZGVmaW5pdGlvbi5HZW'
-    '5lcmljTWVzc2FnZVIIbWVzc2FnZXM=');
+    '5lcmljTWVzc2FnZVIIbWVzc2FnZXMSFgoGbGFzdElkGAIgASgJUgZsYXN0SWQ=');
+
+@$core.Deprecated('Use putGroupMessageRequestDescriptor instead')
+const PutGroupMessageRequest$json = {
+  '1': 'PutGroupMessageRequest',
+  '2': [
+    {'1': 'recipientsId', '3': 1, '4': 3, '5': 9, '10': 'recipientsId'},
+    {'1': 'message', '3': 2, '4': 1, '5': 11, '6': '.definition.GenericMessage', '10': 'message'},
+  ],
+};
+
+/// Descriptor for `PutGroupMessageRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List putGroupMessageRequestDescriptor = $convert.base64Decode(
+    'ChZQdXRHcm91cE1lc3NhZ2VSZXF1ZXN0EiIKDHJlY2lwaWVudHNJZBgBIAMoCVIMcmVjaXBpZW'
+    '50c0lkEjQKB21lc3NhZ2UYAiABKAsyGi5kZWZpbml0aW9uLkdlbmVyaWNNZXNzYWdlUgdtZXNz'
+    'YWdl');
 

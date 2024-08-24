@@ -34,6 +34,7 @@ myFile.writeAsBytesSync((await client.initialExchange("Alice")).writeToBuffer())
   client.receive().listen((event) {
     print("new message: from ${event.$1.name } data is ${utf8.decode(event.$2.payload)}");
     client.sendMessage(event.$1, utf8.encode("hello your message was ${utf8.decode(event.$2.payload)}"));
+    client.sendGroupMessage([event.$1], utf8.encode("group message"));
   });
 
 

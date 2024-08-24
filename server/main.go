@@ -13,6 +13,7 @@ import (
 
 	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -22,10 +23,11 @@ import (
 )
 
 const (
-	redisAddr           = "localhost:6379"
-	jwtSecret           = "your-secret-key"
-	tokenExpiration     = time.Hour * 24 * 30 // giorni di validata
-	AuthorizationHeader = "Authorization"
+	redisAddr              = "localhost:6379"
+	jwtSecret              = "your-secret-key"
+	tokenExpiration        = time.Hour * 24 * 30 // giorni di validata
+	AuthorizationHeader    = "Authorization"
+	maxMessageInGetRequest = 50
 )
 
 var redisClient *redis.Client
@@ -42,6 +44,8 @@ func init() {
 	redisClient = redis.NewClient(&redis.Options{
 		Addr: redisAddr,
 	})
+
+	getMessageScript.Load(context.Background(), redisClient)
 }
 
 func (s *server) ValidateSignature(ctx context.Context, req *pb.SignatureRequest) (*pb.JWTResponse, error) {
@@ -113,7 +117,37 @@ func (s *server) PutMessage(ctx context.Context, req *pb.PutMessageRequest) (*pb
 
 	bytes, _ := proto.Marshal(req)
 
-	err = redisClient.RPush(ctx, req.RecipientId, bytes).Err()
+	err = redisClient.XAdd(ctx, &redis.XAddArgs{Stream: req.RecipientId, Values: map[string]interface{}{"type": "message", "body": bytes}}).Err()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.Empty{}, nil
+}
+
+func (s *server) PutGroupMessage(ctx context.Context, req *pb.PutGroupMessageRequest) (*pb.Empty, error) {
+
+	// Store message in Redis
+
+	_, err := getTokenFromContext(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	bytes, _ := proto.Marshal(req)
+	uniqueId, _ := uuid.NewV7()
+
+	uniqueIdStr := uniqueId.String()
+
+	fmt.Printf("putting group message with id %s\n", uniqueIdStr)
+
+	redisClient.HSet(ctx, uniqueIdStr, map[string]interface{}{"remain": len(req.RecipientsId), "message": bytes})
+
+	for _, recipient := range req.RecipientsId {
+		err = redisClient.XAdd(ctx, &redis.XAddArgs{Stream: recipient, Values: map[string]interface{}{"type": "reference", "r": uniqueIdStr}}).Err()
+	}
 
 	if err != nil {
 		return nil, err
@@ -133,24 +167,39 @@ func (s *server) GetMessages(ctx context.Context, req *pb.GetMessagesRequest) (*
 		return nil, err
 	}
 
-	val, err := redisClient.LRange(ctx, token.fingerprint, 0, -1).Result()
+	result, err := getMessageScript.Run(ctx, redisClient, []string{token.fingerprint}, req.LastId, maxMessageInGetRequest).Slice()
+
+	if err != nil {
+		log.Println(err)
+		log.Fatal(err)
+	}
+
 	if err != nil {
 		return nil, err
 	}
 
 	messages := make([]*pb.GenericMessage, 0)
+	var lastID string
 
-	for _, ele := range val {
-		m := &pb.GenericMessage{}
+	if len(result) == 2 {
+		elements := result[0].([]interface{})
+		lastID = result[1].(string)
 
-		proto.Unmarshal([]byte(ele), m)
+		for _, ele := range elements {
+			m := &pb.GenericMessage{}
+			bodyMessage := []byte(ele.(string))
+			proto.Unmarshal(bodyMessage, m)
+			messages = append(messages, m)
 
-		messages = append(messages, m)
+		}
+
+		fmt.Println("Last ID:", lastID)
+	} else {
+		fmt.Println("empty result:", result)
+		return &pb.GetMessagesResponse{Messages: messages, LastId: req.LastId}, nil
 	}
 
-	redisClient.Del(ctx, token.fingerprint)
-
-	return &pb.GetMessagesResponse{Messages: messages}, nil
+	return &pb.GetMessagesResponse{Messages: messages, LastId: lastID}, nil
 }
 
 func getTokenFromContext(ctx context.Context) (*jwtStruct, error) {

@@ -33,6 +33,10 @@ class MessageServiceClient extends $grpc.Client {
       '/definition.MessageService/GetMessages',
       ($0.GetMessagesRequest value) => value.writeToBuffer(),
       ($core.List<$core.int> value) => $0.GetMessagesResponse.fromBuffer(value));
+  static final _$putGroupMessage = $grpc.ClientMethod<$0.PutGroupMessageRequest, $0.Empty>(
+      '/definition.MessageService/PutGroupMessage',
+      ($0.PutGroupMessageRequest value) => value.writeToBuffer(),
+      ($core.List<$core.int> value) => $0.Empty.fromBuffer(value));
 
   MessageServiceClient($grpc.ClientChannel channel,
       {$grpc.CallOptions? options,
@@ -50,6 +54,10 @@ class MessageServiceClient extends $grpc.Client {
 
   $grpc.ResponseFuture<$0.GetMessagesResponse> getMessages($0.GetMessagesRequest request, {$grpc.CallOptions? options}) {
     return $createUnaryCall(_$getMessages, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.Empty> putGroupMessage($0.PutGroupMessageRequest request, {$grpc.CallOptions? options}) {
+    return $createUnaryCall(_$putGroupMessage, request, options: options);
   }
 }
 
@@ -79,6 +87,13 @@ abstract class MessageServiceBase extends $grpc.Service {
         false,
         ($core.List<$core.int> value) => $0.GetMessagesRequest.fromBuffer(value),
         ($0.GetMessagesResponse value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.PutGroupMessageRequest, $0.Empty>(
+        'PutGroupMessage',
+        putGroupMessage_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.PutGroupMessageRequest.fromBuffer(value),
+        ($0.Empty value) => value.writeToBuffer()));
   }
 
   $async.Future<$0.JWTResponse> validateSignature_Pre($grpc.ServiceCall call, $async.Future<$0.SignatureRequest> request) async {
@@ -93,7 +108,12 @@ abstract class MessageServiceBase extends $grpc.Service {
     return getMessages(call, await request);
   }
 
+  $async.Future<$0.Empty> putGroupMessage_Pre($grpc.ServiceCall call, $async.Future<$0.PutGroupMessageRequest> request) async {
+    return putGroupMessage(call, await request);
+  }
+
   $async.Future<$0.JWTResponse> validateSignature($grpc.ServiceCall call, $0.SignatureRequest request);
   $async.Future<$0.Empty> putMessage($grpc.ServiceCall call, $0.PutMessageRequest request);
   $async.Future<$0.GetMessagesResponse> getMessages($grpc.ServiceCall call, $0.GetMessagesRequest request);
+  $async.Future<$0.Empty> putGroupMessage($grpc.ServiceCall call, $0.PutGroupMessageRequest request);
 }
