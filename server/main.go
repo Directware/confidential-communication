@@ -46,6 +46,8 @@ func init() {
 	})
 
 	getMessageScript.Load(context.Background(), redisClient)
+	deleteOldMessageScript.Load(context.Background(), redisClient)
+
 }
 
 func (s *server) ValidateSignature(ctx context.Context, req *pb.SignatureRequest) (*pb.JWTResponse, error) {
@@ -168,6 +170,13 @@ func (s *server) GetMessages(ctx context.Context, req *pb.GetMessagesRequest) (*
 	}
 
 	result, err := getMessageScript.Run(ctx, redisClient, []string{token.fingerprint}, req.LastId, maxMessageInGetRequest).Slice()
+	go func() {
+		err = deleteOldMessageScript.Run(context.Background(), redisClient, []string{token.fingerprint}, req.LastId).Err()
+
+		if err != nil {
+			fmt.Println(err)
+		}
+	}()
 
 	if err != nil {
 		log.Println(err)
