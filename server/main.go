@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"time"
 
@@ -20,14 +19,8 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
-)
 
-const (
-	redisAddr              = "localhost:6379"
-	jwtSecret              = "your-secret-key"
-	tokenExpiration        = time.Hour * 24 * 30 // giorni di validata
-	AuthorizationHeader    = "Authorization"
-	maxMessageInGetRequest = 50
+	"github.com/rs/zerolog/log"
 )
 
 var redisClient *redis.Client
@@ -41,8 +34,9 @@ type server struct {
 }
 
 func init() {
+
 	redisClient = redis.NewClient(&redis.Options{
-		Addr: redisAddr,
+		Addr: appConfig.Redis.Address,
 	})
 
 	getMessageScript.Load(context.Background(), redisClient)
@@ -93,17 +87,15 @@ func generateJWT(fingerprint string) string {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"fingerprint": fingerprint,
-		"exp":         time.Now().Add(tokenExpiration).Unix(),
+		"exp":         time.Now().Add(appConfig.Token.Expiration).Unix(),
 	})
 
-	tokenString, _ := token.SignedString([]byte(jwtSecret))
+	tokenString, _ := token.SignedString([]byte(appConfig.Token.JWTSecret))
 
 	return tokenString
 }
 
 func (s *server) PutMessage(ctx context.Context, req *pb.PutMessageRequest) (*pb.Empty, error) {
-
-	// Store message in Redis
 
 	_, err := getTokenFromContext(ctx)
 
@@ -129,8 +121,6 @@ func (s *server) PutMessage(ctx context.Context, req *pb.PutMessageRequest) (*pb
 }
 
 func (s *server) PutGroupMessage(ctx context.Context, req *pb.PutGroupMessageRequest) (*pb.Empty, error) {
-
-	// Store message in Redis
 
 	_, err := getTokenFromContext(ctx)
 
@@ -169,7 +159,7 @@ func (s *server) GetMessages(ctx context.Context, req *pb.GetMessagesRequest) (*
 		return nil, err
 	}
 
-	result, err := getMessageScript.Run(ctx, redisClient, []string{token.fingerprint}, req.LastId, maxMessageInGetRequest).Slice()
+	result, err := getMessageScript.Run(ctx, redisClient, []string{token.fingerprint}, req.LastId, appConfig.Limit.MaxMessageInGetRequest).Slice()
 	go func() {
 		err = deleteOldMessageScript.Run(context.Background(), redisClient, []string{token.fingerprint}, req.LastId).Err()
 
@@ -179,8 +169,8 @@ func (s *server) GetMessages(ctx context.Context, req *pb.GetMessagesRequest) (*
 	}()
 
 	if err != nil {
-		log.Println(err)
-		log.Fatal(err)
+		log.Error().Err(err).Msgf("falied to execute script to get Message")
+		return nil, fmt.Errorf("Unable to get message")
 	}
 
 	if err != nil {
@@ -228,13 +218,11 @@ func getTokenFromContext(ctx context.Context) (*jwtStruct, error) {
 		token = values[0]
 
 		token, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
-			// Don't forget to validate the alg is what you expect:
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
 			}
 
-			// hmacSampleSecret is a []byte containing your secret, e.g. []byte("my_secret_key")
-			return []byte(jwtSecret), nil
+			return []byte(appConfig.Token.JWTSecret), nil
 		})
 
 		if err != nil {
@@ -260,9 +248,12 @@ func getTokenFromContext(ctx context.Context) (*jwtStruct, error) {
 
 }
 func main() {
-	lis, err := net.Listen("tcp", ":50051")
+
+	parseConfig()
+
+	lis, err := net.Listen("tcp", appConfig.Server.Address)
 	if err != nil {
-		log.Fatalf("Failed to listen: %v", err)
+		log.Fatal().Err(err).Msg("Failed to listen")
 	}
 	s := grpc.NewServer(
 
@@ -271,6 +262,7 @@ func main() {
 
 	pb.RegisterMessageServiceServer(s, &server{})
 	if err := s.Serve(lis); err != nil {
-		log.Fatalf("Failed to serve: %v", err)
+		log.Fatal().Err(err).Msg("Failed to serve")
+
 	}
 }
