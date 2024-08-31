@@ -14,7 +14,8 @@ final userID = ["bob", '(adasd)', '<test@test.com>'].join(' ');
 final privateKey = await OpenPGP.generateKey(
     [userID],
     passphrase,
-    type: KeyGenerationType.eddsa,
+    type: KeyGenerationType.ecdsa,
+    curve: CurveInfo.secp256k1
 
 );
 
@@ -32,7 +33,7 @@ client.shouldAddContact = (initial) {
 
 
 
-var myFile = File('qrcode.txt');
+var myFile = File('/home/razzo/Progetti/confidatial_comminication/client/qrcode.txt');
 
 
 GenericMessage initialExchange = GenericMessage.fromBuffer(myFile.readAsBytesSync());
