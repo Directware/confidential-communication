@@ -7,7 +7,9 @@ services:
       - '6379:6379'
     command: redis-server --save 20 1 --loglevel debug
   server:
-    image: razzorazzo1/confidantial:0.1.0
+    depends_on:
+      - cache
+    image: ghcr.io/directware/confidential-communication:0.1.0
     restart: always
     ports:
       - '50051:50051'
