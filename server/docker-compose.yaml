@@ -1,4 +1,3 @@
-
 version: '3.8'
 services:
   cache:
@@ -7,3 +6,11 @@ services:
     ports:
       - '6379:6379'
     command: redis-server --save 20 1 --loglevel debug
+  server:
+    image: razzorazzo1/confidantial:0.1.0
+    restart: always
+    ports:
+      - '50051:50051'
+    environment:
+      REDIS_ADDRESS: cache:6379
+      JWT_SECRET: superSecureSecret

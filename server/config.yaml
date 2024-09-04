@@ -1,16 +1,16 @@
 redis:
-  address: localhosta:6379
+  address: ${REDIS_ADDRESS|localhost:6379}
   auth: null
 
 server:
   address: :50051
 
 token:
-  jwtSecret: testtest
+  jwtSecret: ${JWT_SECRET}
   expiration: 720h00m00s
 
 limit:
   maxMessageInGetRequest: 50
 
 log:
-  level: trace
+  level: ${LOG_LEVEL|trace}

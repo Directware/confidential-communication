@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"os"
 	"time"
 
@@ -11,6 +12,11 @@ import (
 )
 
 var appConfig AppConfig
+
+const ENV_CONFIG_PATH_NAME = "CONFIG_PATH"
+
+//go:embed config.yaml
+var embed_config string
 
 type Redis struct {
 	Address string `mapstructure:"address" default:"localhost:6379"`
@@ -48,13 +54,26 @@ func parseConfig() *AppConfig {
 	// add driver for support yaml content
 	config.AddDriver(yaml.Driver)
 
-	err := config.LoadFiles("config.yaml")
-	if err != nil {
-		panic(err)
+	val := os.Getenv(ENV_CONFIG_PATH_NAME)
+
+	var fileToParse string
+
+	if val != "" {
+		fileBytes, err := os.ReadFile(val)
+
+		fileToParse = string(fileBytes)
+
+		if err != nil {
+			log.Fatal().Err(err).Msg("Falied to parse config file")
+		}
+	} else {
+		fileToParse = embed_config
 	}
 
+	config.LoadStrings(config.Yaml, fileToParse)
+
 	c := AppConfig{}
-	err = config.Decode(&c)
+	err := config.Decode(&c)
 
 	if err != nil {
 		panic(err)
@@ -69,6 +88,10 @@ func parseConfig() *AppConfig {
 	}
 
 	zerolog.SetGlobalLevel(level)
+
+	if c.Token.JWTSecret == "" {
+		log.Fatal().Msg("token.JWTSecret can not be empty")
+	}
 
 	log.Trace().Msgf("CONFIG: %+v", c)
 

@@ -33,11 +33,17 @@ type server struct {
 	pb.UnimplementedMessageServiceServer
 }
 
-func init() {
+func initRedis() {
 
 	redisClient = redis.NewClient(&redis.Options{
 		Addr: appConfig.Redis.Address,
 	})
+
+	err := redisClient.Ping(context.Background()).Err()
+
+	if err != nil {
+		log.Error().Err(err).Msgf("Falied to ping redis to address %s", appConfig.Redis.Address)
+	}
 
 	getMessageScript.Load(context.Background(), redisClient)
 	deleteOldMessageScript.Load(context.Background(), redisClient)
@@ -250,6 +256,7 @@ func getTokenFromContext(ctx context.Context) (*jwtStruct, error) {
 func main() {
 
 	parseConfig()
+	initRedis()
 
 	lis, err := net.Listen("tcp", appConfig.Server.Address)
 	if err != nil {
